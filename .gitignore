@@ -102,3 +102,14 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+# Inputs and outputs
+
+*.mp4
+*.mp3
+*.gif
+
+# IDE files
+
+.vscode/
+.idea/
