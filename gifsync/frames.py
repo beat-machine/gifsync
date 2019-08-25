@@ -62,7 +62,7 @@ def render_indexed_frames(
                 "-vcodec", "libx264",
                 "-acodec", "aac",  # Using MP3 makes some websites act up when uploading
                 "-crf", "25",
-                output + ".mp4" if len(output.split(".")) <= 1 else "",
+                output + (".mp4" if len(output.split(".")) <= 1 else ""),
                 # fmt: on
             ]
         )
