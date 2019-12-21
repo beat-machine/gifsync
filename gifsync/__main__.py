@@ -1,10 +1,17 @@
 import argparse
+import enum
 
 import halo
 from PIL import Image
 from pydub import AudioSegment
 
-from gifsync.frames import to_frames, render_indexed_frames
+from gifsync.effect import (
+    cas_by_amplitude,
+    index_by_amplitude,
+    cas_and_index_by_amplitude,
+)
+from gifsync.frames import to_frames
+from gifsync.rendering import render_video
 from gifsync.volume import median_filter, normalize, to_loudness_ratios
 
 
@@ -46,6 +53,11 @@ def main():
         "--show-amplitude-graph",
         action="store_true",
         help="shows a graph of the audio's amplitude (after processing, before mapping to frames) before rendering",
+    )
+    parser.add_argument(
+        "--cas",
+        action="store_true",
+        help="applies content aware scale (note: uses excessive memory, best for smaller gifs)",
     )
     parser.add_argument(
         "--output",
@@ -96,8 +108,6 @@ def main():
         ratios = list(to_loudness_ratios(processed_audio, ms_per_frame))
         smoothed_ratios = median_filter(list(normalize(ratios)), window=args.smoothing)
 
-        frame_indices = [int((len(frames) - 1) * r) for r in smoothed_ratios]
-
         if args.show_amplitude_graph:
             import matplotlib.pyplot as plt
 
@@ -109,8 +119,13 @@ def main():
         spinner.succeed()
 
     with halo.Halo(f"Rendering video to {args.output}") as spinner:
-        render_indexed_frames(
-            frame_indices, frames, args.fps, original_audio, args.output
+        effect = index_by_amplitude
+
+        if args.cas:
+            effect = cas_and_index_by_amplitude
+
+        render_video(
+            list(effect(frames, smoothed_ratios)), args.fps, original_audio, args.output
         )
         spinner.succeed()
 

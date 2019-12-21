@@ -10,7 +10,7 @@ def to_loudness_ratios(audio: AudioSegment, step_ms: int):
     :param step_ms: Chunk size to use
     :return: A generator yielding loudness ratios of each chunk
     """
-    for i in range(0, len(audio), step_ms):
+    for i in range(step_ms, len(audio), step_ms):
         clip = audio[i : i + step_ms]
         yield clip.rms / clip.max_possible_amplitude
 

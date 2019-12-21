@@ -108,6 +108,8 @@ venv.bak/
 *.mp4
 *.mp3
 *.gif
+*.png
+*.wav
 
 # IDE files
 
