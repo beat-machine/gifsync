@@ -1,42 +1,18 @@
 import os
 import subprocess
 import tempfile
-from typing import List, Union, Iterable
+import warnings
+from typing import List, Union
 
 import PIL.Image
-import pydub
+import librosa
+import numpy as np
+import scipy.signal
+import soundfile
 
 import gifsync.effects as fx
 
-
-def to_rms_array(audio: pydub.AudioSegment, step_ms: int):
-    return [audio[i: i + step_ms].rms for i in range(step_ms, len(audio), step_ms)]
-
-
-def normalize(values: Iterable[float]):
-    values = list(values)
-
-    x_min = min(values)
-    x_max = max(values)
-
-    for x_i in values:
-        yield (x_i - x_min) / (x_max - x_min)
-
-
-def median_filter(values: Iterable[float], window: int = 1) -> List[float]:
-    values = list(values)
-
-    filtered = [0.0] * len(values)
-
-    for i in range(window):
-        filtered[i] = values[i]
-        filtered[-i] = values[-i]
-
-    for i in range(window, len(values) - window):
-        segment = values[i - window: i + window]
-        filtered[i] = list(sorted(segment))[len(segment) // 2]
-
-    return filtered
+warnings.filterwarnings("ignore", category=UserWarning, module='librosa')
 
 
 def to_frames(gif: PIL.Image.Image):
@@ -54,54 +30,71 @@ def to_frames(gif: PIL.Image.Image):
 
 
 def render_video(
-        frames: List[PIL.Image.Image], audio: pydub.AudioSegment, fps: int, output: str
+        frames: List[PIL.Image.Image], audio_y: np.ndarray, audio_sr: int, fps: int, output: str
 ):
-    frame_digits = len(str(len(frames)))
-    filename_format = "{0:0" + str(frame_digits) + "d}.png"
-
     with tempfile.TemporaryDirectory() as d:
-        for i, r in enumerate(frames):
-            r.save(os.path.join(d, filename_format.format(i)))
+        audio_filename = os.path.join(d, output + ".wav")
+        soundfile.write(audio_filename, audio_y, audio_sr)
 
-        audio_filename = os.path.join(d, output + ".mp3")
-        audio.export(audio_filename, format="mp3")
-
-        subprocess.check_call(
+        p = subprocess.Popen(
             [
                 # fmt: off
                 "ffmpeg",
                 "-hide_banner",
                 "-loglevel", "panic",
                 "-y",
+                "-f", "image2pipe",
+                "-vcodec", "mjpeg",
                 "-r", str(fps),
-                "-f", "image2",
-                "-i", os.path.join(d, f"%0{frame_digits}d.png"),
+                "-i", "-",
                 "-i", audio_filename,
+                "-acodec", "aac",
                 "-pix_fmt", "yuv420p",
                 "-vcodec", "libx264",
-                "-acodec", "aac",  # Using MP3 makes some websites act up when uploading
                 "-crf", "25",
                 output + (".mp4" if len(output.split(".")) <= 1 else ""),
                 # fmt: on
-            ]
+            ],
+            stdin=subprocess.PIPE
         )
 
+        for f in frames:
+            f.convert('RGB').save(p.stdin, 'JPEG')
 
-def apply_av_effects(
-        audio: Union[pydub.AudioSegment, str],
+        p.stdin.close()
+        p.wait()
+
+
+# Best guess at attribution: https://github.com/andi611/CS-Tacotron-Pytorch/blob/master/src/utils/data.py
+def high_pass(y, sr, filter_pass_freq):
+    nyquist_rate = sr / 2.
+    desired = (0, 0, 1, 1)
+    bands = (0, 70, filter_pass_freq, nyquist_rate)
+    filter_coefs = scipy.signal.firls(1001, bands, desired, nyq=nyquist_rate)
+    filtered_audio = scipy.signal.filtfilt(filter_coefs, [1], y)
+
+    return filtered_audio
+
+
+def process_files(
+        audio: str,
         gif: Union[PIL.Image.Image],
         effects: List[fx.AVEffect],
         output: str,
         output_fps: int = 24,
         high_pass_hz: int = 800,
-        smoothing_window: int = 2
+        smoothing_window: int = 3
 ):
-    if type(audio) is str:
-        audio = pydub.AudioSegment.from_file(audio)
+    print('load audio')
+    y, sr = librosa.load(audio)
+    y /= np.max(np.abs(y), axis=0)
+    audio_length = librosa.get_duration(y, sr)
 
+    print('load image')
     if type(gif) is str:
         gif = PIL.Image.open(gif)
 
+    print('norm image')
     # To make ffmpeg happy, we want our frames to have even dimensions.
     w, h = gif.size
     if w % 2 != 0:
@@ -109,19 +102,18 @@ def apply_av_effects(
     if h % 2 != 0:
         h -= 1
 
+    print('x frames')
     frames = [f.resize((w, h)) for f in to_frames(gif)]
-    processed_audio = audio.high_pass_filter(high_pass_hz).compress_dynamic_range().normalize()
 
-    ms_per_frame = 1000 // output_fps
-    gif_time_curve = list(
-        normalize(
-            median_filter(
-                to_rms_array(processed_audio, ms_per_frame), window=smoothing_window
-            )
-        )
-    )
+    print('calc energies')
+    energy_by_frame = high_pass(y, sr, high_pass_hz)
+    frame_splits = np.array_split(energy_by_frame, int(audio_length * output_fps))
+    energy_by_frame = np.array([np.max(librosa.feature.rms(y=s)) for s in frame_splits])
+    energy_by_frame = scipy.signal.medfilt(energy_by_frame, kernel_size=smoothing_window)
+    energy_by_frame /= np.max(np.abs(energy_by_frame), axis=0)
 
-    reordered_frames = list(fx.apply_effects(frames, gif_time_curve, *effects))
-    audio = audio[: ms_per_frame * len(reordered_frames)]
+    print('apply fx')
+    reordered_frames = list(fx.apply_effects(frames, energy_by_frame, *effects))
 
-    render_video(reordered_frames, audio, output_fps, output)
+    print('render')
+    render_video(reordered_frames, y, sr, output_fps, output)

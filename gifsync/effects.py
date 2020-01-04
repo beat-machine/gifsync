@@ -3,19 +3,20 @@ import io
 import tempfile
 from typing import Callable, Iterable, List
 
+import numpy as np
 import wand.image
 from PIL import Image
 
-AVEffect = Callable[[List[Image.Image], List[float]], Iterable[Image.Image]]
+AVEffect = Callable[[List[Image.Image], np.ndarray], Iterable[Image.Image]]
 
 
 def index_by_amplitude(
-    frames: List[Image.Image], amplitudes: List[float]
+    frames: List[Image.Image], energy: np.ndarray
 ) -> Iterable[Image.Image]:
-    frame_indices = [int((len(frames) - 1) * r) for r in amplitudes]
+    frame_indices = (len(frames) - 1) * energy
 
     for i in frame_indices:
-        yield frames[i]
+        yield frames[int(i)]
 
 
 def cas_by_amplitude(
@@ -32,7 +33,6 @@ def cas_by_amplitude(
             with base_image.clone() as i:
                 original_width, original_height = i.size
                 i.liquid_rescale(int(f * original_width), int(f * original_height))
-                print(i.size)
                 i.resize(original_width, original_height)
 
                 out = io.BytesIO()
@@ -73,8 +73,8 @@ def cas_and_index_by_amplitude(
 
 
 def apply_effects(
-    frames: List[Image.Image], amplitudes: List[float], *effects: AVEffect
+    frames: List[Image.Image], energy: np.ndarray, *effects: AVEffect
 ) -> Iterable[Image.Image]:
     return functools.reduce(
-        lambda effect_frames, f: list(f(effect_frames, amplitudes)), effects, frames
+        lambda effect_frames, f: list(f(effect_frames, energy)), effects, frames
     )

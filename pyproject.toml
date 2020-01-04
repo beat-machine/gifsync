@@ -7,14 +7,13 @@ license = "MPL-2.0"
 
 [tool.poetry.dependencies]
 python = "^3.7"
-halo = "^0.0.28"
-pydub = "^0.23.1"
 pillow = "^6.2"
 wand = "^0.5.8"
 click = "^7.0"
 numpy = "^1.18"
 scipy = "^1.4"
 librosa = "^0.7.1"
+pysndfx = "^0.3.6"
 
 [tool.poetry.dev-dependencies]
 black = {version = "^18.3-alpha.0", allows-prereleases = true}
