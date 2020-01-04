@@ -11,9 +11,14 @@ halo = "^0.0.28"
 pydub = "^0.23.1"
 pillow = "^6.2"
 wand = "^0.5.8"
-matplotlib = "^3.1"
+click = "^7.0"
+numpy = "^1.18"
+scipy = "^1.4"
+librosa = "^0.7.1"
 
 [tool.poetry.dev-dependencies]
+black = {version = "^18.3-alpha.0", allows-prereleases = true}
+pylint = "^2.4"
 
 [build-system]
 requires = ["poetry>=0.12"]

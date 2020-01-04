@@ -49,7 +49,6 @@ def _cas(frame: Image.Image, f: float) -> Image.Image:
         with base_image.clone() as i:
             original_width, original_height = i.size
             i.liquid_rescale(int(f * original_width), int(f * original_height))
-            print(i.size)
             i.resize(original_width, original_height)
 
             out = io.BytesIO()
@@ -61,21 +60,21 @@ def _cas(frame: Image.Image, f: float) -> Image.Image:
 def cas_and_index_by_amplitude(
     frames: List[Image.Image], amplitudes: List[float]
 ) -> Iterable[Image.Image]:
-    indexed_frames = index_by_amplitude(frames, amplitudes)
+    indexed_frames = list(index_by_amplitude(frames, amplitudes))
     frame_indices = [int((len(frames) - 1) * r) for r in amplitudes]
-    factors = [1 - a for a in amplitudes]
+    factors = [max(0.1, 1 - a) for a in amplitudes]
     frame_cache = {}
 
     for (idx, f) in zip(frame_indices, factors):
         if idx not in frame_cache:
-            frame_cache[idx] = _cas(frames[idx], f)
+            frame_cache[idx] = _cas(indexed_frames[idx], f)
 
         yield frame_cache[idx]
 
 
 def apply_effects(
-    frames: List[Image.Image], amplitudes: List[float], **effects: AVEffect
+    frames: List[Image.Image], amplitudes: List[float], *effects: AVEffect
 ) -> Iterable[Image.Image]:
     return functools.reduce(
-        lambda effect_frames, f: f(effect_frames, amplitudes), effects, frames
+        lambda effect_frames, f: list(f(effect_frames, amplitudes)), effects, frames
     )
