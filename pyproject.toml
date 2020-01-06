@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "gifsync"
-version = "0.0.0"
+version = "0.0.1"
 description = "Syncs gifs and audio"
 authors = ["dhsavell <dhsavell05@gmail.com>"]
 license = "MPL-2.0"
@@ -13,10 +13,9 @@ click = "^7.0"
 numpy = "^1.18"
 scipy = "^1.4"
 librosa = "^0.7.1"
-pysndfx = "^0.3.6"
 
 [tool.poetry.dev-dependencies]
-black = {version = "^18.3-alpha.0", allows-prereleases = true}
+black = {version = "^18.3-alpha.0", allow-prereleases = true}
 pylint = "^2.4"
 
 [build-system]
