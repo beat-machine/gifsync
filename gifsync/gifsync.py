@@ -2,7 +2,7 @@ import os
 import subprocess
 import tempfile
 import warnings
-from typing import List, Union
+from typing import List, Tuple, Union
 
 import PIL.Image
 import librosa
@@ -92,19 +92,23 @@ def arctan_compressor(x, factor=2):
 
 
 def process_files(
-        audio: str,
-        gif: Union[PIL.Image.Image],
+        audio: Union[Tuple[np.ndarray, int], str],
+        gif: Union[PIL.Image.Image, str],
         effects: List[fx.AVEffect],
         output: str,
         output_fps: int = 24,
         high_pass_hz: int = 800,
         smoothing_window: int = 3
 ):
-    y, sr = librosa.load(audio)
+    if type(audio) is tuple:
+        y, sr = audio
+    else:
+        y, sr = librosa.load(audio)
+
     y /= np.max(np.abs(y), axis=0)
     audio_length = librosa.get_duration(y, sr)
 
-    if type(gif) is str:
+    if type(gif) is not PIL.Image.Image:
         gif = PIL.Image.open(gif)
 
     # To make ffmpeg happy, we want our frames to have even dimensions.
