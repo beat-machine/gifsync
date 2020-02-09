@@ -108,7 +108,7 @@ def process_files(
     y /= np.max(np.abs(y), axis=0)
     audio_length = librosa.get_duration(y, sr)
 
-    if type(gif) is not PIL.Image.Image:
+    if type(gif) is str:
         gif = PIL.Image.open(gif)
 
     # To make ffmpeg happy, we want our frames to have even dimensions.
